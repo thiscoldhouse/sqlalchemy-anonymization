@@ -55,9 +55,12 @@ class Battle(BaseModel):
 
 db.create_all()
 
-augustus = Emperor('Augustus', '2222222222')
-actium = Battle('Actium', True, augustus.emperor_id)
+augustus = Emperor(name='Augustus', phone_number='2222222222')
+db.session.add(augustus)
+db.session.flush()
+actium = Battle(name='Actium', success=True, emperor_id=augustus.emperor_id)
+db.session.add(actium)
+db.session.commit()
+# print(augustus.emperor_id)
 
-print(augustus.emperor_id)
-
-create_anonymized_database('sqlite://')
+create_anonymized_database('sqlite:///tmp/fakedata.sql')

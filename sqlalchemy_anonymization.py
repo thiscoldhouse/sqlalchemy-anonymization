@@ -2,7 +2,6 @@ import hashlib
 import random
 from sqlalchemy import create_engine, MetaData, Table, Column, ForeignKey
 import sys
-from pprint import pprint
 
 BASE = None  # gets filled in when sqlalchemy app is initialized
 anonymizers = {}  # decorator fills this
@@ -52,7 +51,6 @@ def create_anonymized_database(target_db_uri):
     target_tables = []
     while len(src_tables) > 0:
         # this lets us come back to do foreign key relationship
-        print(src_tables)
         skipped_tables = []
         for src_table in src_tables:
             columns = []
@@ -87,7 +85,6 @@ def create_anonymized_database(target_db_uri):
                          )
                      else:
                          # we'll do this later, missing parent
-                         print('Skipping table with foreign key for now because parent does not exist yet')
                          skipped_tables.append(src_table)
                          break
             else:
@@ -100,62 +97,48 @@ def create_anonymized_database(target_db_uri):
                 target_tables.append(table)
 
         if len(skipped_tables) == len(src_tables):
-            print(skipped_tables)
-            print(src_tables)
             raise Exception('Something has gone wrong')
 
         src_tables = skipped_tables[:]
         skipped_tables = []
 
-    # we go through the same logic as above to generate and
+    # we go through similar logic as above to generate and
     # insert the anonymized data.
     src_tables = BASE.__subclasses__()
     filled_tables = []
-    while len(src_tables) > 0:
-        skipped_tables = []
+    filled_tables_length = 0  # check to avoid infinite looping
+    while len(filled_tables) < len(src_tables):
         for src_table in src_tables:
             columns = []
-            for src_instance in src_table.query.all():
-                 for column in src_table.__table__.columns:
-                     if len(column.foreign_keys) == 0:
-                         filled_tables.append(
-                             copy_and_anonymize(
-                                 src_table,
-                                 target_tables,
-                                 target_engine,
-                             )
-                         )
-                     elif len(column.foreign_keys) > 1:
-                         raise NotImplementedError()
-                     else:
-                         fk = list(column.foreign_keys)[0]
-                         if fk.column.table.name in [
-                                 t.description
-                                 for t in filled_tables
-                         ]:
-                             filled_tables.append(
-                                 copy_and_anonymize(
-                                     src_table,
-                                     target_tables,
-                                     target_engine,
-                                 )
-                             )
-                         else:
-                             # we'll do this later, missing parent
-                             print('Skipping table with foreign key for now because parent does not exist yet')
-                             skipped_tables.append(src_table)
-                             break
+            for column in src_table.__table__.columns:
+                # check to make sure all foreign keys are
+                # alreayd filled in, if not, skip and
+                # do again later
+                 if len(column.foreign_keys) == 0:
+                     pass
+                 elif len(column.foreign_keys) > 1:
+                     raise NotImplementedError()
+                 else:
+                     fk = list(column.foreign_keys)[0]
+                     if fk.column.table.name not in [
+                             t.description
+                             for t in filled_tables
+                     ]:
+                         # we'll do this later, missing parent
+                         break
+            else:
+                filled_tables.append(
+                    copy_and_anonymize(
+                        src_table,
+                        target_tables,
+                        target_engine,
+                    )
+                )
 
-        if len(skipped_tables) == len(src_tables):
+        if len(filled_tables) == filled_tables_length:
             raise Exception('Something has gone wrong')
-
-        print('skipped tables:', skipped_tables)
-
-        src_tables = skipped_tables[:]
-        skipped_tables = []
-
-    pprint(target_tables)
-
+        else:
+            filled_tables_length = len(filled_tables)
 
 def copy_and_anonymize(src_table, target_tables, engine):
     target_table = None
@@ -187,8 +170,5 @@ def copy_and_anonymize(src_table, target_tables, engine):
                 ](
                     insert_kwargs[colname]
                 )
-
-        print(insert_kwargs)
         engine.execute(target_table.insert(), **insert_kwargs)
-
     return target_table

@@ -63,4 +63,4 @@ db.session.add(actium)
 db.session.commit()
 # print(augustus.emperor_id)
 
-create_anonymized_database('sqlite:///tmp/fakedata.sql')
+create_anonymized_database('sqlite://///tmp/fakedata.sql')

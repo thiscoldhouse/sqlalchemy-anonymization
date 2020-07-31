@@ -21,7 +21,7 @@ def boolean(original_value):
 
 @anonymizer
 def sha256(original_value):
-    return hashlib.sha256().update(original_value).hexdigest()
+    return hashlib.sha256(original_value.encode('utf-8')).hexdigest()
 
 # --------- for registering in the sqlalchemy project ------- #
 
@@ -170,6 +170,7 @@ def copy_and_anonymize(src_table, target_tables, engine):
             )
         )
 
+    anon_fxn_mapper = getattr(src_table, 'anonymize', {})
     for instance in src_table.query.all():
         insert_kwargs = {}
         for colname in src_table.__table__.columns.keys():
@@ -178,6 +179,15 @@ def copy_and_anonymize(src_table, target_tables, engine):
                 continue
             # handle foreign keys
             insert_kwargs[colname] = getattr(instance, colname)
+
+            # anonymize if relevant
+            if colname in anon_fxn_mapper.keys():
+                insert_kwargs[colname] = anonymizers[
+                    anon_fxn_mapper[colname]
+                ](
+                    insert_kwargs[colname]
+                )
+
         print(insert_kwargs)
         engine.execute(target_table.insert(), **insert_kwargs)
 
